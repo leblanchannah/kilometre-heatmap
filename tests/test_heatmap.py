@@ -33,7 +33,7 @@ def test_fetch_paginates_and_exchanges_key(monkeypatch):
     calls = []
     run = {"activityType": {"typeKey": "running"}, "distance": 1000.0, "startTimeGMT": "2026-10-01 12:00:00"}
 
-    def fake(method, path, auth, params=None):
+    def fake(method, path, auth, params=None, accept="*/*"):
         calls.append((method, path, auth, params and params["start"]))
         if path == fg.TOKEN_PATH:
             return {"access_token": "tok"}

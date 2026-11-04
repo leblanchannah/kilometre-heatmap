@@ -72,14 +72,15 @@ ACTIVITIES_PATH = "/activitylist-service/activities/search/activities"
 PAGE = 100
 
 
-def _request(method: str, path: str, auth: str, params: dict | None = None):
+def _request(method: str, path: str, auth: str, params: dict | None = None, accept: str = "*/*"):
     url = API_BASE + path + ("?" + urllib.parse.urlencode(params) if params else "")
-    req = urllib.request.Request(url, method=method, headers={"Authorization": auth, "Accept": "application/json"})
+    req = urllib.request.Request(url, method=method, headers={"Authorization": auth, "Accept": accept})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             body = resp.read().decode()
     except urllib.error.HTTPError as e:
-        sys.exit(f"Garmin API {method} {path} failed: HTTP {e.code} {e.reason}")
+        detail = e.read().decode(errors="replace")[:300].strip()
+        sys.exit(f"Garmin API {method} {path} failed: HTTP {e.code} {e.reason}" + (f"\n{detail}" if detail else ""))
     try:
         return json.loads(body)
     except json.JSONDecodeError:
@@ -110,7 +111,7 @@ def fetch_runs(token: str, start: dt.date, end: dt.date) -> list[dict]:
             "start": offset,
             "limit": PAGE,
             "sortOrder": "asc",
-        })
+        }, accept="application/json")
         activities.extend(page)
         if len(page) < PAGE:
             return activities
