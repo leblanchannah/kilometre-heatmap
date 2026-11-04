@@ -1,0 +1,7 @@
+.env
+tokens/
+raw/
+config.toml
+__pycache__/
+*.pyc
+.venv/

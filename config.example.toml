@@ -1,0 +1,32 @@
+# Copy to config.toml and edit. config.toml is gitignored.
+
+[display]
+username = "leblanchannah"     # shown in the SVG <title>
+units = "km"                   # "km" or "mi"
+timezone = "America/Toronto"   # days are bucketed in this zone
+weeks = 53                     # number of columns (GitHub uses 53)
+
+[data]
+csv = "daily_km.csv"           # date,km  (written by fetch_garmin.py)
+output = "runs.svg"
+
+# Level thresholds in display units: a day >= thresholds[i] gets level i+1.
+# Any distance > 0 is at least level 1.
+[levels]
+thresholds = [0.01, 5, 10, 15]
+
+# GitHub-style dark theme with an orange ramp. The SVG also carries a light
+# theme that kicks in when the viewer's system is in light mode.
+[colors.dark]
+background = "#22272e"
+border = "#444c56"
+text = "#adbac7"
+empty = "#2d333b"
+levels = ["#5c2b0b", "#9a4413", "#d9661a", "#ffa657"]
+
+[colors.light]
+background = "#ffffff"
+border = "#d0d7de"
+text = "#57606a"
+empty = "#ebedf0"
+levels = ["#ffd8b5", "#ffa657", "#e8710a", "#9a4413"]
