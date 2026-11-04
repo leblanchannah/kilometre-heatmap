@@ -2,7 +2,7 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 
 from fetch_garmin import daily_totals
-from make_svg import DEFAULT_CONFIG, level_for, render
+from make_svg import DEFAULT_CONFIG, intensity, ramp_color, render
 
 TZ = ZoneInfo("America/Toronto")
 
@@ -16,15 +16,21 @@ def test_late_evening_utc_run_counts_on_local_day():
     assert daily_totals(acts, TZ) == {dt.date(2026, 10, 1): 7.5}
 
 
-def test_levels():
-    t = [0.01, 5, 10, 15]
-    assert [level_for(v, t) for v in (0, 2, 5, 9.9, 10, 30)] == [0, 1, 2, 2, 3, 4]
+def test_longest_day_is_brightest():
+    assert intensity(0, 42.7, 0.5) == 0
+    assert intensity(42.7, 42.7, 0.5) == 1
+    assert intensity(10, 42.7, 0.5) < intensity(20, 42.7, 0.5) < 1
+    ramp = DEFAULT_CONFIG["colors"]["ramp"]
+    assert ramp_color(1, ramp) == ramp[-1] and ramp_color(0, ramp) == ramp[0]
 
 
 def test_render_grid():
     svg = render({dt.date(2026, 11, 2): 12.0}, DEFAULT_CONFIG, today=dt.date(2026, 11, 4))
     assert svg.count('class="c ') == 52 * 7 + 4  # last column runs Sun..Wed
     assert "12 km on Nov 2, 2026" in svg and "12 km run in the last year" in svg
+    assert "longest 12 km on Nov 2, 2026" in svg
+    assert DEFAULT_CONFIG["colors"]["ramp"][-1] in svg  # max day gets the top colour
+    assert "prefers-color-scheme" not in svg
 
 
 def test_fetch_paginates_and_exchanges_key(monkeypatch):

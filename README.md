@@ -7,16 +7,16 @@ It's built from Garmin Connect data by a job that runs on your own machine.
 
 *(The SVG committed now is rendered from `sample_daily_km.csv`. The first real update replaces it.)*
 
-The SVG follows the viewer's theme: dark by default, light when the system is in light mode. Hovering a square shows that day's distance.
+The SVG uses GitHub's dark theme. Colour scales smoothly with distance, and your longest day in the window is always the brightest square; the footer names that day so you can sanity-check it. Hovering a square shows that day's distance.
 
 ## How it works
 
 | File | Role |
 |---|---|
 | `fetch_garmin.py` | Uses the official [Garmin Connect Personal API](https://developer.garmin.com/gc-developer-program/personal/personal-api/) with your personal API key, keeps running activities only (road, trail, treadmill, track), converts start times to your timezone, and writes `daily_km.csv` (`date,km`). |
-| `make_svg.py` | Turns `daily_km.csv` into `runs.svg` (a 7×53 grid with 4 orange levels). It uses only the standard library. |
+| `make_svg.py` | Turns `daily_km.csv` into `runs.svg` (a 7×53 grid on a continuous orange scale). It uses only the standard library. |
 | `update.sh` | Fetches, renders, then commits and pushes `runs.svg` and `daily_km.csv` if they changed. |
-| `config.example.toml` | Username, units (km/mi), timezone, level thresholds, colours. |
+| `config.example.toml` | Username, units (km/mi), timezone, colour scale, colours. |
 | `sample_daily_km.csv` | Fake data, so you can try the renderer without a Garmin account. |
 
 **Privacy:** only daily totals and the SVG are committed. Raw activity JSON can contain GPS start points, so it is never written unless you pass `--dump-raw`, and then only to `raw/`, which is gitignored. Your API key stays in `.env`, which is gitignored. The 24-hour access token is only held in memory.
@@ -34,7 +34,7 @@ python3 make_svg.py --csv sample_daily_km.csv --out runs.svg
 ```bash
 git clone https://github.com/leblanchannah/kilometre-heatmap && cd kilometre-heatmap
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp config.example.toml config.toml   # edit timezone, colours, thresholds
+cp config.example.toml config.toml   # edit timezone, colour scale
 cp .env.example .env                 # paste your GARMIN_API_KEY
 .venv/bin/python fetch_garmin.py
 .venv/bin/python make_svg.py
