@@ -26,7 +26,7 @@ def test_longest_day_is_brightest():
 
 def test_render_grid():
     svg = render({dt.date(2026, 11, 2): 12.0}, DEFAULT_CONFIG, today=dt.date(2026, 11, 4))
-    assert svg.count('class="c ') == 52 * 7 + 4  # last column runs Sun..Wed
+    assert svg.count('"><title>') == 52 * 7 + 4  # last column runs Sun..Wed
     assert "12 km on Nov 2, 2026" in svg and "12 km run in the last year" in svg
     assert "longest 12 km on Nov 2, 2026" in svg
     assert DEFAULT_CONFIG["colors"]["ramp"][-1] in svg  # max day gets the top colour
