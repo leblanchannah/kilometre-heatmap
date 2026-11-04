@@ -1,25 +1,19 @@
 # kilometre-heatmap
 
-A GitHub-contributions-style heatmap of daily running distance, in orange.
-It's built from Garmin Connect data by a job that runs on your own machine.
+A GitHub-contributions-style heatmap of daily running distance from Garmin Connect data
 
 [![Run heatmap](runs.svg)](https://github.com/leblanchannah/kilometre-heatmap)
 
-*(The SVG committed now is rendered from `sample_daily_km.csv`. The first real update replaces it.)*
-
-The SVG uses GitHub's dark theme. Colour scales smoothly with distance, and your longest day in the window is always the brightest square; the footer names that day so you can sanity-check it. Hovering a square shows that day's distance.
 
 ## How it works
 
 | File | Role |
 |---|---|
 | `fetch_garmin.py` | Uses the official [Garmin Connect Personal API](https://developer.garmin.com/gc-developer-program/personal/personal-api/) with your personal API key, keeps running activities only (road, trail, treadmill, track), converts start times to your timezone, and writes `daily_km.csv` (`date,km`). |
-| `make_svg.py` | Turns `daily_km.csv` into `runs.svg` (a 7×53 grid on a continuous orange scale). It uses only the standard library. |
+| `make_svg.py` | Turns `daily_km.csv` into `runs.svg` (a 7×53 grid on a continuous orange scale). |
 | `update.sh` | Fetches, renders, then commits and pushes `runs.svg` and `daily_km.csv` if they changed. |
 | `config.example.toml` | Username, units (km/mi), timezone, colour scale, colours. |
 | `sample_daily_km.csv` | Fake data, so you can try the renderer without a Garmin account. |
-
-**Privacy:** only daily totals and the SVG are committed. Raw activity JSON can contain GPS start points, so it is never written unless you pass `--dump-raw`, and then only to `raw/`, which is gitignored. Your API key stays in `.env`, which is gitignored. The 24-hour access token is only held in memory.
 
 ## Try it with sample data
 
@@ -40,39 +34,11 @@ cp .env.example .env                 # paste your GARMIN_API_KEY
 .venv/bin/python make_svg.py
 ```
 
-To get a key, open Garmin Connect Web, go to **Personal API Key**, then **Create Key**. Garmin shows the key once, so paste it straight into `.env`. Keys expire after 30, 90 or 180 days, or one year. Garmin emails you about a week before the key expires. When that happens, create a new key and update `.env`; until you do, the scheduled job will fail.
-
-## Schedule it
-
-**cron** (Linux/macOS), daily at 21:30:
-
-```
-30 21 * * * /path/to/kilometre-heatmap/update.sh >> /tmp/run-heatmap.log 2>&1
-```
-
-**launchd** (macOS): save this as `~/Library/LaunchAgents/com.runheatmap.update.plist`, then run `launchctl load` on it:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>com.runheatmap.update</string>
-  <key>ProgramArguments</key><array><string>/path/to/kilometre-heatmap/update.sh</string></array>
-  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>30</integer></dict>
-  <key>StandardOutPath</key><string>/tmp/run-heatmap.log</string>
-  <key>StandardErrorPath</key><string>/tmp/run-heatmap.log</string>
-</dict></plist>
-```
-
-The job pushes with your normal git credentials, so set up an SSH key or a credential helper first.
-
-## Add it to your profile README
+## Add to your profile README
 
 ```markdown
 [![Daily running km](https://raw.githubusercontent.com/leblanchannah/kilometre-heatmap/main/runs.svg)](https://github.com/leblanchannah/kilometre-heatmap)
 ```
-
-GitHub's image proxy can cache the image for a while. If updates lag too much, have `update.sh` also copy `runs.svg` into your `username/username` repo and push it there.
 
 ## Tests
 
