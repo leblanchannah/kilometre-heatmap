@@ -13,13 +13,13 @@ The SVG follows the viewer's theme: dark by default, light when the system is in
 
 | File | Role |
 |---|---|
-| `fetch_garmin.py` | Logs in with [`garminconnect`](https://github.com/cyberjunky/python-garminconnect), keeps running activities only (road, trail, treadmill, track), converts start times to your timezone, and writes `daily_km.csv` (`date,km`). |
+| `fetch_garmin.py` | Uses the official [Garmin Connect Personal API](https://developer.garmin.com/gc-developer-program/personal/personal-api/) with your personal API key, keeps running activities only (road, trail, treadmill, track), converts start times to your timezone, and writes `daily_km.csv` (`date,km`). |
 | `make_svg.py` | Turns `daily_km.csv` into `runs.svg` (a 7×53 grid with 4 orange levels). It uses only the standard library. |
 | `update.sh` | Fetches, renders, then commits and pushes `runs.svg` and `daily_km.csv` if they changed. |
 | `config.example.toml` | Username, units (km/mi), timezone, level thresholds, colours. |
 | `sample_daily_km.csv` | Fake data, so you can try the renderer without a Garmin account. |
 
-**Privacy:** only daily totals and the SVG are committed. Raw activity JSON can contain GPS start points, so it is never written unless you pass `--dump-raw`, and then only to `raw/`, which is gitignored. Credentials stay in `.env`, and tokens stay in `~/.garminconnect`. Neither goes into the repo.
+**Privacy:** only daily totals and the SVG are committed. Raw activity JSON can contain GPS start points, so it is never written unless you pass `--dump-raw`, and then only to `raw/`, which is gitignored. Your API key stays in `.env`, which is gitignored. The 24-hour access token is only held in memory.
 
 ## Try it with sample data
 
@@ -35,12 +35,12 @@ python3 make_svg.py --csv sample_daily_km.csv --out runs.svg
 git clone https://github.com/leblanchannah/kilometre-heatmap && cd kilometre-heatmap
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp config.example.toml config.toml   # edit timezone, colours, thresholds
-cp .env.example .env                 # add your Garmin email/password
-.venv/bin/python fetch_garmin.py     # first run: enter your MFA code if asked
+cp .env.example .env                 # paste your GARMIN_API_KEY
+.venv/bin/python fetch_garmin.py
 .venv/bin/python make_svg.py
 ```
 
-After the first login, the cached tokens are used and no prompt appears. If Garmin changes its login flow, run `pip install -U garminconnect`.
+To get a key, open Garmin Connect Web, go to **Personal API Key**, then **Create Key**. Garmin shows the key once, so paste it straight into `.env`. Keys expire after 30, 90 or 180 days, or one year. Garmin emails you about a week before the key expires. When that happens, create a new key and update `.env`; until you do, the scheduled job will fail.
 
 ## Schedule it
 
