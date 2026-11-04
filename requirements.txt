@@ -1,1 +1,1 @@
-python-dotenv>=1.0  # optional: load .env automatically
+# No third-party packages needed; Python 3.11+ standard library only.

@@ -40,7 +40,7 @@ cp .env.example .env                 # paste your GARMIN_API_KEY
 .venv/bin/python make_svg.py
 ```
 
-To get a key, open Garmin Connect Web, go to **Personal API Key**, then **Create Key**. Garmin shows the key once, so paste it straight into `.env`. Keys expire after 30, 90 or 180 days, or one year. Garmin emails you about a week before the key expires. When that happens, create a new key and update `.env`; until you do, the scheduled job will fail. `python-dotenv` is optional. Without it, export `GARMIN_API_KEY` in the job's environment.
+To get a key, open Garmin Connect Web, go to **Personal API Key**, then **Create Key**. Garmin shows the key once, so paste it straight into `.env`. Keys expire after 30, 90 or 180 days, or one year. Garmin emails you about a week before the key expires. When that happens, create a new key and update `.env`; until you do, the scheduled job will fail.
 
 ## Schedule it
 

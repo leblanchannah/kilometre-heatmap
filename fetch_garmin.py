@@ -25,11 +25,22 @@ from collections import defaultdict
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+
+
+def load_env(path: Path) -> None:
+    """Minimal .env reader (KEY=value lines). Real env vars take precedence."""
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.removeprefix("export ").split("=", 1)
+        val = val.split(" #", 1)[0].strip().strip("'\"")
+        os.environ.setdefault(key.strip(), val)
+
+
+load_env(Path(__file__).resolve().parent / ".env")
 
 from make_svg import load_config
 

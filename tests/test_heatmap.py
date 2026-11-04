@@ -45,3 +45,13 @@ def test_fetch_paginates_and_exchanges_key(monkeypatch):
     assert len(acts) == fg.PAGE + 3
     assert calls[0][:3] == ("POST", fg.TOKEN_PATH, "ApiKey k")
     assert [c[2:] for c in calls[1:]] == [("Bearer tok", 0), ("Bearer tok", fg.PAGE)]
+
+
+def test_load_env(tmp_path, monkeypatch):
+    import os
+    from fetch_garmin import load_env
+
+    monkeypatch.delenv("GARMIN_API_KEY", raising=False)
+    (tmp_path / ".env").write_text('# c\nexport GARMIN_API_KEY="abc123"  # note\n')
+    load_env(tmp_path / ".env")
+    assert os.environ["GARMIN_API_KEY"] == "abc123"
