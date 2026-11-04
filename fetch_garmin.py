@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Fetch running activities from Garmin Connect and write daily totals.
+"""Fetch running activities from the Garmin Connect Personal API and write daily totals.
 
 Writes only `date,km` rows. Raw activity JSON (which can contain GPS start
 points) is never written to disk unless you pass --dump-raw, and then only
 into ./raw/, which is gitignored.
 
-Credentials: GARMIN_EMAIL / GARMIN_PASSWORD from the environment or .env.
-Tokens are cached in GARMINTOKENS (default ~/.garminconnect), outside the repo.
-The first login with MFA must be run interactively in a terminal.
+Auth: GARMIN_API_KEY from the environment or .env. Create it at
+Garmin Connect Web > Personal API Key. The key is exchanged for an access
+token (valid 24 h) on every run, so nothing else is cached on disk.
+Set GARMIN_API_BASE=https://personal.connectapi.garmin.cn for Garmin China.
 """
 from __future__ import annotations
 
@@ -17,6 +18,9 @@ import datetime as dt
 import json
 import os
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -51,23 +55,55 @@ def daily_totals(activities: list[dict], tz: ZoneInfo) -> dict[dt.date, float]:
     return totals
 
 
-def login():
-    from garminconnect import Garmin
+API_BASE = os.getenv("GARMIN_API_BASE", "https://personal.connectapi.garmin.com")
+TOKEN_PATH = "/personalapitoken-service/personal-api/personal-api-key/token"
+ACTIVITIES_PATH = "/activitylist-service/activities/search/activities"
+PAGE = 100
 
-    tokenstore = os.path.expanduser(os.getenv("GARMINTOKENS", "~/.garminconnect"))
+
+def _request(method: str, path: str, auth: str, params: dict | None = None):
+    url = API_BASE + path + ("?" + urllib.parse.urlencode(params) if params else "")
+    req = urllib.request.Request(url, method=method, headers={"Authorization": auth, "Accept": "application/json"})
     try:
-        g = Garmin()
-        g.login(tokenstore)
-        return g
-    except Exception:
-        pass
-    email, password = os.getenv("GARMIN_EMAIL"), os.getenv("GARMIN_PASSWORD")
-    if not email or not password:
-        sys.exit("Set GARMIN_EMAIL and GARMIN_PASSWORD (env or .env).")
-    g = Garmin(email=email, password=password, prompt_mfa=lambda: input("Garmin MFA code: "))
-    g.login()
-    g.garth.dump(tokenstore)
-    return g
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = resp.read().decode()
+    except urllib.error.HTTPError as e:
+        sys.exit(f"Garmin API {method} {path} failed: HTTP {e.code} {e.reason}")
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        return body.strip()
+
+
+def get_access_token() -> str:
+    key = os.getenv("GARMIN_API_KEY")
+    if not key:
+        sys.exit("Set GARMIN_API_KEY (env or .env). Create one at Garmin Connect Web > Personal API Key.")
+    resp = _request("POST", TOKEN_PATH, f"ApiKey {key}")
+    if isinstance(resp, dict):
+        for field in ("access_token", "accessToken", "token"):
+            if resp.get(field):
+                return resp[field]
+        sys.exit(f"Unexpected token response fields: {sorted(resp)}")
+    return resp
+
+
+def fetch_runs(token: str, start: dt.date, end: dt.date) -> list[dict]:
+    activities: list[dict] = []
+    offset = 0
+    while True:
+        page = _request("GET", ACTIVITIES_PATH, f"Bearer {token}", {
+            "activityType": "running",  # parent type: includes trail, treadmill, track
+            "startDate": start.isoformat(),
+            "endDate": end.isoformat(),
+            "start": offset,
+            "limit": PAGE,
+            "sortOrder": "asc",
+        })
+        activities.extend(page)
+        if len(page) < PAGE:
+            return activities
+        offset += PAGE
 
 
 def main() -> None:
@@ -84,8 +120,7 @@ def main() -> None:
 
     end = dt.datetime.now(tz).date()
     start = end - dt.timedelta(days=args.days)
-    g = login()
-    activities = g.get_activities_by_date(start.isoformat(), end.isoformat())
+    activities = fetch_runs(get_access_token(), start, end)
 
     if args.dump_raw:
         Path("raw").mkdir(exist_ok=True)

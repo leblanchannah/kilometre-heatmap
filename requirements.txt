@@ -1,2 +1,1 @@
-garminconnect>=0.2.19
-python-dotenv>=1.0
+python-dotenv>=1.0  # optional: load .env automatically

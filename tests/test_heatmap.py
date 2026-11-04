@@ -25,3 +25,23 @@ def test_render_grid():
     svg = render({dt.date(2026, 11, 2): 12.0}, DEFAULT_CONFIG, today=dt.date(2026, 11, 4))
     assert svg.count('class="c ') == 52 * 7 + 4  # last column runs Sun..Wed
     assert "12 km on Nov 2, 2026" in svg and "12 km run in the last year" in svg
+
+
+def test_fetch_paginates_and_exchanges_key(monkeypatch):
+    import fetch_garmin as fg
+
+    calls = []
+    run = {"activityType": {"typeKey": "running"}, "distance": 1000.0, "startTimeGMT": "2026-10-01 12:00:00"}
+
+    def fake(method, path, auth, params=None):
+        calls.append((method, path, auth, params and params["start"]))
+        if path == fg.TOKEN_PATH:
+            return {"access_token": "tok"}
+        return [run] * (fg.PAGE if params["start"] == 0 else 3)
+
+    monkeypatch.setenv("GARMIN_API_KEY", "k")
+    monkeypatch.setattr(fg, "_request", fake)
+    acts = fg.fetch_runs(fg.get_access_token(), dt.date(2026, 1, 1), dt.date(2026, 11, 4))
+    assert len(acts) == fg.PAGE + 3
+    assert calls[0][:3] == ("POST", fg.TOKEN_PATH, "ApiKey k")
+    assert [c[2:] for c in calls[1:]] == [("Bearer tok", 0), ("Bearer tok", fg.PAGE)]
