@@ -2,8 +2,8 @@
 """Render a GitHub-contributions-style heatmap of daily running distance.
 
 Input:  CSV with columns date,km  (YYYY-MM-DD, float)
-Output: a standalone SVG (dark theme by default, light theme via
-        prefers-color-scheme so it matches the viewer's GitHub theme).
+Output: a standalone dark-theme SVG. Colour scales continuously with distance
+        (square-root scale) so your longest day is always the brightest square.
 
 Usage:  python make_svg.py [--config config.toml] [--csv FILE] [--out FILE]
 """
@@ -22,18 +22,11 @@ KM_PER_MI = 1.609344
 DEFAULT_CONFIG = {
     "display": {"username": "", "units": "km", "timezone": "America/Toronto", "weeks": 53},
     "data": {"csv": "daily_km.csv", "output": "runs.svg"},
-    "levels": {"thresholds": [0.01, 5, 10, 15]},
+    "scale": {"max": 0, "gamma": 0.5},
     "colors": {
-        "dark": {
-            "background": "#22272e", "border": "#444c56", "text": "#adbac7",
-            "empty": "#2d333b",
-            "levels": ["#5c2b0b", "#9a4413", "#d9661a", "#ffa657"],
-        },
-        "light": {
-            "background": "#ffffff", "border": "#d0d7de", "text": "#57606a",
-            "empty": "#ebedf0",
-            "levels": ["#ffd8b5", "#ffa657", "#e8710a", "#9a4413"],
-        },
+        "background": "#22272e", "border": "#444c56", "text": "#adbac7",
+        "empty": "#2d333b",
+        "ramp": ["#4a1f06", "#a8470f", "#f27a1a", "#ffc58a"],
     },
 }
 
@@ -71,14 +64,25 @@ def read_daily(path: Path) -> dict[dt.date, float]:
     return totals
 
 
-def level_for(value: float, thresholds: list[float]) -> int:
-    if value <= 0:
-        return 0
-    lvl = 1
-    for i, t in enumerate(thresholds):
-        if value >= t:
-            lvl = i + 1
-    return lvl
+def _rgb(h: str) -> tuple[int, int, int]:
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def ramp_color(t: float, ramp: list[str]) -> str:
+    """Interpolate along evenly spaced colour stops, t in [0, 1]."""
+    t = min(max(t, 0.0), 1.0) * (len(ramp) - 1)
+    i = min(int(t), len(ramp) - 2)
+    f = t - i
+    a, b = _rgb(ramp[i]), _rgb(ramp[i + 1])
+    return "#" + "".join(f"{round(x + (y - x) * f):02x}" for x, y in zip(a, b))
+
+
+def intensity(value: float, vmax: float, gamma: float) -> float:
+    """0 for no run; otherwise (value/vmax)**gamma, so vmax maps to 1 (brightest)."""
+    if value <= 0 or vmax <= 0:
+        return 0.0
+    return min(value / vmax, 1.0) ** gamma
 
 
 def fmt_num(x: float) -> str:
@@ -90,8 +94,9 @@ def render(daily_km: dict[dt.date, float], cfg: dict, today: dt.date | None = No
     units = disp["units"]
     factor = 1 / KM_PER_MI if units == "mi" else 1.0
     weeks = int(disp["weeks"])
-    thresholds = cfg["levels"]["thresholds"]
-    dark, light = cfg["colors"]["dark"], cfg["colors"]["light"]
+    col = cfg["colors"]
+    ramp = col["ramp"]
+    gamma = float(cfg["scale"]["gamma"])
 
     if today is None:
         today = dt.datetime.now(ZoneInfo(disp["timezone"])).date()
@@ -101,7 +106,10 @@ def render(daily_km: dict[dt.date, float], cfg: dict, today: dt.date | None = No
     year_ago = today - dt.timedelta(days=365)
 
     total = sum(v for d, v in daily_km.items() if year_ago < d <= today) * factor
-    run_days = sum(1 for d, v in daily_km.items() if year_ago < d <= today and v > 0)
+    in_year = {d: v * factor for d, v in daily_km.items() if year_ago < d <= today and v > 0}
+    run_days = len(in_year)
+    best_day = max(in_year, key=in_year.get) if in_year else None
+    vmax = float(cfg["scale"]["max"]) * factor or (in_year[best_day] if best_day else 1.0)
 
     grid_w = weeks * STEP - GAP
     box_x, box_y = PAD_X, TITLE_H + 8
@@ -120,18 +128,11 @@ def render(daily_km: dict[dt.date, float], cfg: dict, today: dt.date | None = No
     who = f"{disp['username']}: " if disp.get("username") else ""
     a(f'<title id="t">{escape(who + title)} ({run_days} days)</title>')
 
-    css_levels_dark = "".join(f".l{i+1}{{fill:{c}}}" for i, c in enumerate(dark["levels"]))
-    css_levels_light = "".join(f".l{i+1}{{fill:{c}}}" for i, c in enumerate(light["levels"]))
     a("<style>"
       f"svg{{font-family:{FONT}}}"
-      f".bg{{fill:{dark['background']}}}.box{{fill:none;stroke:{dark['border']}}}"
-      f".tx{{fill:{dark['text']};font-size:10px}}.hd{{fill:{dark['text']};font-size:16px}}"
-      f".l0{{fill:{dark['empty']}}}{css_levels_dark}"
-      "rect.c{shape-rendering:geometricPrecision}"
-      "@media (prefers-color-scheme: light){"
-      f".bg{{fill:{light['background']}}}.box{{stroke:{light['border']}}}"
-      f".tx,.hd{{fill:{light['text']}}}.l0{{fill:{light['empty']}}}{css_levels_light}"
-      "}</style>")
+      f".bg{{fill:{col['background']}}}.box{{fill:none;stroke:{col['border']}}}"
+      f".tx{{fill:{col['text']};font-size:10px}}.hd{{fill:{col['text']};font-size:16px}}"
+      "</style>")
     a(f'<rect class="bg" width="{width}" height="{height}" rx="6"/>')
     a(f'<text class="hd" x="{PAD_X}" y="{TITLE_H - 8}">{escape(title)}</text>')
     a(f'<rect class="box" x="{box_x + .5}" y="{box_y + .5}" width="{box_w}" height="{box_h}" rx="6"/>')
@@ -160,22 +161,24 @@ def render(daily_km: dict[dt.date, float], cfg: dict, today: dt.date | None = No
                 continue
             km = daily_km.get(day, 0.0)
             v = km * factor
-            lvl = level_for(v, thresholds)
+            fill = ramp_color(intensity(v, vmax, gamma), ramp) if v > 0 else col["empty"]
             label = f"{fmt_num(v)} {units} on {day:%b %-d, %Y}" if v > 0 else f"No runs on {day:%b %-d, %Y}"
-            a(f'<rect class="c l{lvl}" x="{LEFT + w * STEP}" y="{TOP + d * STEP}" '
+            a(f'<rect fill="{fill}" x="{LEFT + w * STEP}" y="{TOP + d * STEP}" '
               f'width="{CELL}" height="{CELL}" rx="2"><title>{label}</title></rect>')
 
-    # Legend (right-aligned under the grid)
-    lx_end = LEFT + grid_w
-    more_w = 26
-    x = lx_end - more_w
-    a(f'<text class="tx" x="{x + 4}" y="{legend_y + CELL - 1}">More</text>')
-    for lvl in range(4, -1, -1):
+    # Legend (right-aligned): Less [empty, then ramp up to the max] More
+    ty = legend_y + CELL - 1
+    x = LEFT + grid_w - 26
+    a(f'<text class="tx" x="{x + 4}" y="{ty}">More</text>')
+    swatches = [ramp_color(t, ramp) for t in (1, .75, .5, .25, .05)] + [col["empty"]]
+    for c in swatches:
         x -= STEP
-        a(f'<rect class="l{lvl}" x="{x}" y="{legend_y}" width="{CELL}" height="{CELL}" rx="2"/>')
-    a(f'<text class="tx" x="{x - 4}" y="{legend_y + CELL - 1}" text-anchor="end">Less</text>')
-    a(f'<text class="tx" x="{LEFT}" y="{legend_y + CELL - 1}">{run_days} run days · '
-      f'levels at {", ".join(fmt_num(t) for t in thresholds[1:])} {units}</text>')
+        a(f'<rect fill="{c}" x="{x}" y="{legend_y}" width="{CELL}" height="{CELL}" rx="2"/>')
+    a(f'<text class="tx" x="{x - 4}" y="{ty}" text-anchor="end">Less</text>')
+    footer = f"{run_days} run days"
+    if best_day:
+        footer += f" · longest {fmt_num(in_year[best_day])} {units} on {best_day:%b %-d, %Y}"
+    a(f'<text class="tx" x="{LEFT}" y="{ty}">{escape(footer)}</text>')
     a("</svg>")
     return "\n".join(out) + "\n"
 
